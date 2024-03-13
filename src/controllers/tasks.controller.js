@@ -3,8 +3,13 @@ const pool = require('../db'); // importamos el objeto que permite interactuar c
 
 
 const getAllTasks = async (req, res) => {
-  res.send('retrieving a list of tasks');
-  
+  try {
+    const allTasks = await pool.query("SELECT * FROM task");
+    res.json(allTasks.rows);
+
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 const getTask = async (req, res) => {
