@@ -2,17 +2,17 @@
 const pool = require('../db'); // importamos el objeto que permite interactuar con la BD
 
 
-const getAllTasks = async (req, res) => {
+const getAllTasks = async (req, res, next) => {
   try {
     const allTasks = await pool.query("SELECT * FROM task");
     res.json(allTasks.rows);
 
   } catch (error) {
-    console.log(error.message);
+    next(error);
   }
 };
 
-const getTask = async (req, res) => {
+const getTask = async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -24,18 +24,18 @@ const getTask = async (req, res) => {
     }
     return res.json(result.rows[0]);
   } catch (error) {
-    console.log(error.message);
+    next(error);
   }
 };
 
-const createTask = async (req, res) => {
-  const { title, description } = req.body;
-  // $1 $2 le dice a la BD que le enviaremos 2 valores en cierto orden que definiremos con el arreglo
-  // Returning nos permite devolver los datos que se insertaron en la propiedad rows de result
-  try {
-    /* Debido a que el en la BD el campo title tiene la propiedad unique, no puede duplicarse,
+const createTask = async (req, res, next) => {
+  /* Debido a que el en la BD el campo title tiene la propiedad unique, no puede duplicarse,
     por lo cual, si intentamos agregar un titulo que ya existe en la bd, el servidor se cae, 
     entonces tenemos que utilizar un try catch para manejar este error. */
+  try {
+    const { title, description } = req.body;
+    // $1 $2 le dice a la BD que le enviaremos 2 valores en cierto orden que definiremos con el arreglo
+    // Returning nos permite devolver los datos que se insertaron en la propiedad rows de result
     const result = await pool.query(
       "INSERT INTO task (title, description) VALUES ($1, $2) RETURNING *",
       [title, description]
@@ -44,42 +44,48 @@ const createTask = async (req, res) => {
     res.send('Task created succesfully');
     res.json(result.rows[0]);
   } catch (error) {
-    console.log(error.message);
-    res.json({ error: error.message });
-    res.statusCode = 500;
+    next(error);
   }
 };
 
-const deleteTask = async (req, res) => {
-  const { id } = req.params;
-  const result = await pool.query(
-    "DELETE FROM task WHERE task.id = $1 RETURNING *",
-    [id]
-  );
-  if (result.rowCount === 0) {
-    return res.status(404).json({
-      message: "Task not found"
+const deleteTask = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "DELETE FROM task WHERE task.id = $1 RETURNING *",
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "Task not found"
+      })
+    };
+    return res.status(204).json({
+      message: "Task deleted"
     })
-  };
-  return res.status(204).json({
-    message: "Task deleted"
-  })
+  } catch (error) {
+    next(error);
+  }
 };
 
 
-const updateTask = async (req, res) => {
-  const { id } = req.params;
-  const { title, description } = req.body;
-  const result = await pool.query(
-    "UPDATE task SET title = $1, description = $2 WHERE task.id = $3 RETURNING *",
-    [title, description, id]
-  );
-  if (result.rows.length === 0) {
-    return res.status(404).json({
-      message: "Task not found"
-    });
+const updateTask = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    const result = await pool.query(
+      "UPDATE task SET title = $1, description = $2 WHERE task.id = $3 RETURNING *",
+      [title, description, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Task not found"
+      });
+    }
+    return res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
   }
-  return res.json(result.rows[0]);
 };
 
 
