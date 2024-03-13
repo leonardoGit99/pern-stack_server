@@ -1,30 +1,28 @@
 /* End Points que el frontend pueda utilizar*/
 
 const { Router } = require('express'); // Extraemos Router de express y lo ejecutamos para que nos permita hacer el routing en nuestra app
+const { getAllTasks, getTask, createTask, deleteTask, updateTask } = require('../controllers/tasks.controller');
 const pool = require('../db');
+
 
 const router = Router();
 
-router.get('/tasks', async (req, res) => {
-  const result = await pool.query('SELECT NOW()');
-  res.json(result.rows[0].now);
-});
+/* Rutas de la app */
+//Ejemplo de una ruta sin un controller.
+/* router.get('/tasks', (req, res) => {  // El segundo parámetro del metodo get, ejecuta una funcion que sera emitida una vez se visite la ruta
+  res.send('retrieving a list of tasks'); // que está en el segundo parametro. Por lo cual, conviene separar esta funcion en los controllers, exportarlas
+                                          // e importarlas desde este archivo para que sea mas organizado.
+}); */
 
-router.get('/tasks/10', (req, res) => {
-  res.send('retrieving a single task');
-});
+router.get('/tasks', getAllTasks);
 
-router.post('/tasks', (req, res) => {
-  res.send('creating a task');
-});
+router.get('/tasks/10', getTask);
 
-router.delete('/tasks', (req, res) => {
-  res.send('deleting a task');
-});
+router.post('/tasks', createTask);
 
-router.put('/tasks', (req, res) => {
-  res.send('updating a task');
-});
+router.delete('/tasks', deleteTask);
+
+router.put('/tasks', updateTask);
 
 
 

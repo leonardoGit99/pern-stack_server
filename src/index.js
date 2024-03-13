@@ -11,4 +11,4 @@ app.use(taskRoutes);
 
 const PORT = 4000;
 app.listen(PORT);
-console.log(`Server on port ${PORT}`);
+console.log(`Server on port ${PORT} or http://localhost:${PORT}`);
