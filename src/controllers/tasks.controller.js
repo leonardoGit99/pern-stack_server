@@ -1,0 +1,1 @@
+/* Ejecutan funciones cuando una URL o endpoint es visitada */

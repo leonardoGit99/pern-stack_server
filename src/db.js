@@ -1,0 +1,1 @@
+/* Archivo para almacenar la conexion hacia la base de datos */
