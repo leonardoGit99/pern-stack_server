@@ -1,11 +1,13 @@
 /* End Points que el frontend pueda utilizar*/
 
 const { Router } = require('express'); // Extraemos Router de express y lo ejecutamos para que nos permita hacer el routing en nuestra app
+const pool = require('../db');
 
 const router = Router();
 
-router.get('/tasks', (req, res) => {
-  res.send('retrieving a list of tasks');
+router.get('/tasks', async (req, res) => {
+  const result = await pool.query('SELECT NOW()');
+  res.json(result.rows[0].now);
 });
 
 router.get('/tasks/10', (req, res) => {
