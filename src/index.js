@@ -7,6 +7,8 @@ const taskRoutes = require('./routes/tasks.routes'); //importamos el modulo task
 const app = express();
 
 app.use(morgan('dev'));
+app.use(express.json()); // Para que express pueda entender el formato json para post
+
 app.use(taskRoutes);
 
 const PORT = 4000;
