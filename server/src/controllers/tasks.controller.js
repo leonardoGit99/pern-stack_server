@@ -41,8 +41,10 @@ const createTask = async (req, res, next) => {
       [title, description]
     );
 
-    res.send('Task created succesfully');
-    res.json(result.rows[0]);
+    res.status(201).json({
+      message: 'Task created successfully',
+      task: result.rows[0]
+    });
   } catch (error) {
     next(error);
   }
@@ -87,6 +89,7 @@ const updateTask = async (req, res, next) => {
     next(error);
   }
 };
+
 
 
 
