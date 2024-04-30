@@ -6,6 +6,6 @@ const router = Router();
 const upload = multer({ dest: 'uploads/' });
 
 router.post('/images/single', upload.single('taskImage'), createImg);
-router.post('/images/multiple', upload.array('imgs', 10), createImgs)
+router.post('/images/multiple', upload.array('imgs', 10), createImgs);
 
 module.exports = router;

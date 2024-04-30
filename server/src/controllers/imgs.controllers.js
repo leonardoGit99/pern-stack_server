@@ -19,6 +19,8 @@ function saveImage(file) { // Se encarga de renombrar el archivo (fieldname) por
 }
 
 
+
+
 module.exports = {
   createImg,
   createImgs,

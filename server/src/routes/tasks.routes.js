@@ -3,9 +3,10 @@
 const { Router } = require('express'); // Extraemos Router de express y lo ejecutamos para que nos permita hacer el routing en nuestra app
 const { getAllTasks, getTask, createTask, deleteTask, updateTask } = require('../controllers/tasks.controller');
 const pool = require('../db');
-
+const multer = require('multer');
 
 const router = Router();
+const upload = multer({ dest: 'uploads/' });
 
 /* Rutas de la app */
 //Ejemplo de una ruta sin un controller.
@@ -18,7 +19,7 @@ router.get('/tasks', getAllTasks);
 
 router.get('/tasks/:id', getTask);
 
-router.post('/tasks', createTask);
+router.post('/tasks', upload.array('imgs', 10), createTask);
 
 router.delete('/tasks/:id', deleteTask);
 
