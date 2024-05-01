@@ -6,7 +6,7 @@ const pool = require('../db');
 const multer = require('multer');
 
 const router = Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: 'public/' });
 
 /* Rutas de la app */
 //Ejemplo de una ruta sin un controller.

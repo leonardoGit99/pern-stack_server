@@ -2,12 +2,11 @@
 const express = require('express');
 const morgan = require('morgan'); //Morgan es un middleware que se ejecuta antes y durante una solicitud HTTP, registra los request entre otros.
 const cors = require('cors'); // Modulo que permite comunicar ambos servidores de manera simple (React + Express)
-
+const path = require('path');
 
 
 const taskRoutes = require('./routes/tasks.routes'); //importamos el modulo tasksroutes.js 
 const imgsRoutes = require('./routes/imgs.routes');
-
 
 
 const app = express();
@@ -15,6 +14,7 @@ const app = express();
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json()); // Para que express pueda entender el formato json para post
+app.use('/image', express.static(path.join(__dirname, '../public')));
 
 app.use(taskRoutes);
 app.use(imgsRoutes);
