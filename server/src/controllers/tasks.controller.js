@@ -1,11 +1,13 @@
 /* Ejecutan funciones cuando una URL o endpoint es visitada */
 const pool = require('../db'); // importamos el objeto que permite interactuar con la BD
-const fs = require('node:fs');
-const path = require('path');
+const stream = require('stream');
 const { cloudinary } = require('../config');
+// const fs = require('node:fs');
+// const path = require('path');
 
 const getAllTasks = async (req, res, next) => {
   try {
+    // Query devuelve todas las tareas registradas
     const allTasks = await pool.query("SELECT * FROM task");
     res.json(allTasks.rows);
 
@@ -17,6 +19,8 @@ const getAllTasks = async (req, res, next) => {
 const getTask = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Query devuelve id, titulo, descripcion, array de imagenes de una tareas
     const result = await pool.query(
       'SELECT t.task_id, t.title, t.description, ARRAY_AGG(i.image_path) AS image_paths FROM task t JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id, t.title, t.description',
       [id]
@@ -30,55 +34,10 @@ const getTask = async (req, res, next) => {
   }
 };
 
-
-// const createTask = async (req, res, next) => {
-//   /* Debido a que el en la BD el campo title tiene la propiedad unique, no puede duplicarse,
-//     por lo cual, si intentamos agregar un titulo que ya existe en la bd, el servidor se cae, 
-//     entonces tenemos que utilizar un try catch para manejar este error. */
-//   try {
-//     const { title, description } = req.body;
-//     // $1 $2 le dice a la BD que le enviaremos 2 valores en cierto orden que definiremos con el arreglo
-//     // Returning nos permite devolver los datos que se insertaron en la propiedad rows de result
-//     const result = await pool.query(
-//       "INSERT INTO task (title, description) VALUES ($1, $2) RETURNING *",
-//       [title, description]
-//     );
-
-//     const taskId = result.rows[0].task_id;
-//     const images = req.files.map((file) => saveImage(file, taskId));
-//     // Inserta las imágenes asociadas a la tarea
-//     if (images && images.length > 0) {
-//       const insertImageQuery = 'INSERT INTO image (task_id, image_path) VALUES ($1, $2)';
-//       for (const newPath of images) {
-//         await pool.query(insertImageQuery, [taskId, newPath]);
-//       }
-//     }
-
-//     res.status(201).json({
-//       message: 'Task created successfully',
-//       task: result.rows[0]
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-
-// Se encarga de renombrar el archivo (fieldname) por el nombre original con la que es subido (originalname)
-/* function saveImage(file, taskId) {
-  const originalName = {
-    imgName: file.originalname.split(".")[0],
-    imgExtension: file.originalname.split(".")[1]
-  }
-  const nameImgWithId = `${originalName.imgName}_${taskId}.${originalName.imgExtension}`;
-  const newPath = path.join(__dirname, `../../public/${nameImgWithId}`);
-  fs.renameSync(file.path, newPath);
-  return nameImgWithId;
-} */
 const createTask = async (req, res, next) => {
   /* Debido a que el en la BD el campo title tiene la propiedad unique, no puede duplicarse,
-    por lo cual, si intentamos agregar un titulo que ya existe en la bd, el servidor se cae, 
-    entonces tenemos que utilizar un try catch para manejar este error. */
+  por lo cual, si intentamos agregar un titulo que ya existe en la bd, el servidor se cae, 
+  entonces tenemos que utilizar un try catch para manejar este error. */
   try {
     const { title, description } = req.body;
     // $1 $2 le dice a la BD que le enviaremos 2 valores en cierto orden que definiremos con el arreglo
@@ -87,13 +46,14 @@ const createTask = async (req, res, next) => {
       "INSERT INTO task (title, description) VALUES ($1, $2) RETURNING *",
       [title, description]
     );
-
     const taskId = result.rows[0].task_id;
+
     //Promise.all receives a "promises array" and the "Promise.all" is resolved when all the elements of this array are solved
-    const images = await Promise.all(req.files.map((file) => saveImageToCloudinary(file, taskId))); 
+    const images = await Promise.all(req.files.map((file) => saveImageToCloudinary(file, taskId)));
+
     // Inserta las imágenes asociadas a la tarea
     if (images && images.length > 0) {
-      const insertImageQuery = 'INSERT INTO image (task_id, image_path) VALUES ($1, $2)';
+      const insertImageQuery = 'INSERT INTO image (task_id, image_path) VALUES ($1, $2) RETURNING *';
       for (const urlpath of images) {
         await pool.query(insertImageQuery, [taskId, urlpath]);
       }
@@ -108,15 +68,29 @@ const createTask = async (req, res, next) => {
   }
 };
 
-
 async function saveImageToCloudinary(file, taskId) {
   try {
-    const result = await cloudinary.uploader.upload(file.path, {
-      public_id: `task_${taskId}_${file.originalname.split(".")[0]}`,
-      folder: "task"
+    return new Promise((resolve, reject) => {
+      // Creacion de un stream de subida a cloudinary (Es el destino al que se envian los datos y debe estar escuchando)
+      // Creo el id y a que carpeta ira la img en cloudinary
+      const uploadStream = cloudinary.uploader.upload_stream({ // upload_stream le dice a cloudinary que se usara fragmentos o streams para la subida de datos
+        public_id: `task_${taskId}_${file.originalname.split(".")[0]}`, // Id para cada imagen
+        folder: "task" // Carpeta en clodinary
+      }, (error, result) => {
+        if (error) {
+          console.log(error);
+          reject(error);
+        } else {
+          resolve(result.secure_url); // Solo se llama a result cuando la subida a cloudinary se completó
+        }
+      });
+
+
+      // Se crea los datos de la imagen almacenados en memoria y recien los pasa a cloudinary
+      const bufferStream = new stream.PassThrough(); // Crea un buffer stream
+      bufferStream.end(file.buffer); // Envia los datos del archivo al buffer stream (file.buffer contiene solo los datos de la imagen)
+      bufferStream.pipe(uploadStream); // Pasa el buffer stream (fuente) al upload stream de Cloudinary (destino o variable "uploadStream")
     });
-    fs.unlinkSync(file.path); // Elimina el archivo local después de subirlo a Cloudinary
-    return result.secure_url; // Devuelve la URL segura de la imagen
   } catch (error) {
     console.error('Error uploading to Cloudinary:', error);
     throw error;
@@ -163,7 +137,50 @@ const updateTask = async (req, res, next) => {
   }
 };
 
+// const createTask = async (req, res, next) => {
+//   /* Debido a que el en la BD el campo title tiene la propiedad unique, no puede duplicarse,
+//     por lo cual, si intentamos agregar un titulo que ya existe en la bd, el servidor se cae, 
+//     entonces tenemos que utilizar un try catch para manejar este error. */
+//   try {
+//     const { title, description } = req.body;
+//     // $1 $2 le dice a la BD que le enviaremos 2 valores en cierto orden que definiremos con el arreglo
+//     // Returning nos permite devolver los datos que se insertaron en la propiedad rows de result
+//     const result = await pool.query(
+//       "INSERT INTO task (title, description) VALUES ($1, $2) RETURNING *",
+//       [title, description]
+//     );
 
+//     const taskId = result.rows[0].task_id;
+//     const images = req.files.map((file) => saveImage(file, taskId));
+//     // Inserta las imágenes asociadas a la tarea
+//     if (images && images.length > 0) {
+//       const insertImageQuery = 'INSERT INTO image (task_id, image_path) VALUES ($1, $2)';
+//       for (const newPath of images) {
+//         await pool.query(insertImageQuery, [taskId, newPath]);
+//       }
+//     }
+
+//     res.status(201).json({
+//       message: 'Task created successfully',
+//       task: result.rows[0]
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+// Se encarga de renombrar el archivo (fieldname) por el nombre original con la que es subido (originalname)
+/* function saveImage(file, taskId) {
+  const originalName = {
+    imgName: file.originalname.split(".")[0],
+    imgExtension: file.originalname.split(".")[1]
+  }
+  const nameImgWithId = `${originalName.imgName}_${taskId}.${originalName.imgExtension}`;
+  const newPath = path.join(__dirname, `../../public/${nameImgWithId}`);
+  fs.renameSync(file.path, newPath);
+  return nameImgWithId;
+} */
 
 
 // Exportamos un objeto de exportaciones debido a que no solo será un modulo.

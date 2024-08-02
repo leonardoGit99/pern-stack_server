@@ -6,7 +6,9 @@ const pool = require('../db');
 const multer = require('multer');
 
 const router = Router();
-const upload = multer({ dest: 'public/' });
+// const upload = multer({ dest: 'public/' }); //To expose the public folder
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage }); //To storage the imgs in memory and upload to cloudinary directly
 
 /* Rutas de la app */
 //Ejemplo de una ruta sin un controller.

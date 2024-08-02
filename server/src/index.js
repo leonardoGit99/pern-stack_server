@@ -14,7 +14,7 @@ const app = express();
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json()); // Para que express pueda entender el formato json para post
-app.use('/image', express.static(path.join(__dirname, '../public')));
+// app.use('/image', express.static(path.join(__dirname, '../public')));
 
 app.use(taskRoutes);
 app.use(imgsRoutes);
