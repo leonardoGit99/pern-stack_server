@@ -27,7 +27,7 @@ const  getImages = async (req, res, next) => {
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Imgs not found" })
-    }       
+    }     
     return res.json(result.rows[0]);
   } catch (error) {
     next(error);
