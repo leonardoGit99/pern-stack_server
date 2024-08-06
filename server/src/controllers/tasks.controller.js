@@ -8,6 +8,7 @@ const getAllTasks = async (req, res, next) => {
   try {
     // Query devuelve todas las tareas registradas
     const allTasks = await pool.query("SELECT * FROM task");
+    
     res.json(allTasks.rows);
 
   } catch (error) {
@@ -23,7 +24,7 @@ const getTask = async (req, res, next) => {
     // LEFT JOIN PARA QUE DEVUELVA TODOS LOS REGISTROS DE LA TABLA "TASK" Y LAS FILAS COINCIDENTES DE LA TABLA "IMAGE",
     // SI NO HAY COINCIDENCIAS EN LA TABLA "IMAGE", SERAN NULL
     const result = await pool.query(
-      'SELECT t.task_id, t.title, t.description, ARRAY_AGG(i.image_path) AS image_paths FROM task t LEFT JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id, t.title, t.description',
+      'SELECT t.task_id, t.title, t.description, t.state_task, ARRAY_AGG(i.image_path) AS image_paths FROM task t LEFT JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id, t.title, t.description, t.state_task',
       [id]
     );
 
@@ -47,11 +48,12 @@ const createTask = async (req, res, next) => {
   entonces tenemos que utilizar un try catch para manejar este error. */
   try {
     const { title, description } = req.body;
+    const defaultStateTask = "ToDo"
     // $1 $2 le dice a la BD que le enviaremos 2 valores en cierto orden que definiremos con el arreglo
     // Returning nos permite devolver los datos que se insertaron en la propiedad rows de result
     const result = await pool.query(
-      "INSERT INTO task (title, description) VALUES ($1, $2) RETURNING *",
-      [title, description]
+      "INSERT INTO task (title, description, state_task) VALUES ($1, $2, $3) RETURNING *",
+      [title, description, defaultStateTask]
     );
     const taskId = result.rows[0].task_id;
 
@@ -123,16 +125,15 @@ const updateTask = async (req, res, next) => {
   const client = await pool.connect(); // Exclusive conection
   try {
     const { id } = req.params; // Task ID
-    const { title, description, imageUrls } = req.body;
-
+    const { title, description, imageUrls, stateTask } = req.body;
 
     // Begin transaction
     await client.query('BEGIN');
 
     // Update Task, It means: "title and description"
     await client.query(
-      "UPDATE task SET title = $1, description = $2 WHERE task.task_id = $3 RETURNING *",
-      [title, description, id]
+      "UPDATE task SET title = $1, description = $2, state_task = $3 WHERE task.task_id = $4 RETURNING *",
+      [title, description, stateTask, id]
     );
 
 

@@ -3,7 +3,8 @@ CREATE DATABASE taskdb
 CREATE TABLE task(
     task_id SERIAL PRIMARY KEY,
     title VARCHAR(255) UNIQUE,
-    description VARCHAR(255)
+    description VARCHAR(255),
+    state_task VARCHAR(15)
 );
 
 CREATE TABLE image(
