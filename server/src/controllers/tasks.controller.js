@@ -1,7 +1,6 @@
 /* Ejecutan funciones cuando una URL o endpoint es visitada */
 const pool = require('../db'); // importamos el objeto que permite interactuar con la BD
-const stream = require('stream');
-const { cloudinary } = require('../config');
+const { saveImageToCloudinary, deleteImageFromCloudinary } = require('../utils/cloudinary');
 // const fs = require('node:fs');
 // const path = require('path');
 
@@ -21,10 +20,18 @@ const getTask = async (req, res, next) => {
     const { id } = req.params;
 
     // Query devuelve id, titulo, descripcion, array de imagenes de una tareas
+    // LEFT JOIN PARA QUE DEVUELVA TODOS LOS REGISTROS DE LA TABLA "TASK" Y LAS FILAS COINCIDENTES DE LA TABLA "IMAGE",
+    // SI NO HAY COINCIDENCIAS EN LA TABLA "IMAGE", SERAN NULL
     const result = await pool.query(
-      'SELECT t.task_id, t.title, t.description, ARRAY_AGG(i.image_path) AS image_paths FROM task t JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id, t.title, t.description',
+      'SELECT t.task_id, t.title, t.description, ARRAY_AGG(i.image_path) AS image_paths FROM task t LEFT JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id, t.title, t.description',
       [id]
     );
+
+    // Si no existe imagenes, result devuelve image_paths: [null], el if sirve para convertilo a arreglo vacio.
+    if (result.rows.length > 0 && result.rows[0].image_paths[0] === null) {
+      result.rows[0].image_paths = [];
+    }
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Task not found" })
     }
@@ -68,34 +75,7 @@ const createTask = async (req, res, next) => {
   }
 };
 
-async function saveImageToCloudinary(file, taskId) {
-  try {
-    return new Promise((resolve, reject) => {
-      // Creacion de un stream de subida a cloudinary (Es el destino al que se envian los datos y debe estar escuchando)
-      // Creo el id y a que carpeta ira la img en cloudinary
-      const uploadStream = cloudinary.uploader.upload_stream({ // upload_stream le dice a cloudinary que se usara fragmentos o streams para la subida de datos
-        public_id: `task_${taskId}_${file.originalname.split(".")[0]}`, // Id para cada imagen
-        folder: "task" // Carpeta en clodinary
-      }, (error, result) => {
-        if (error) {
-          console.log(error);
-          reject(error);
-        } else {
-          resolve(result.secure_url); // Solo se llama a result cuando la subida a cloudinary se completó
-        }
-      });
 
-
-      // Se crea los datos de la imagen almacenados en memoria y recien los pasa a cloudinary
-      const bufferStream = new stream.PassThrough(); // Crea un buffer stream
-      bufferStream.end(file.buffer); // Envia los datos del archivo al buffer stream (file.buffer contiene solo los datos de la imagen)
-      bufferStream.pipe(uploadStream); // Pasa el buffer stream (fuente) al upload stream de Cloudinary (destino o variable "uploadStream")
-    });
-  } catch (error) {
-    console.error('Error uploading to Cloudinary:', error);
-    throw error;
-  }
-}
 
 const deleteTask = async (req, res, next) => {
   try {
@@ -118,7 +98,7 @@ const deleteTask = async (req, res, next) => {
 };
 
 
-const updateTask = async (req, res, next) => {
+/* const updateTask = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { title, description } = req.body;
@@ -131,10 +111,83 @@ const updateTask = async (req, res, next) => {
         message: "Task not found"
       });
     }
+    console.log(result.rows);
+
     return res.json(result.rows[0]);
   } catch (error) {
     next(error);
   }
+}; */
+
+const updateTask = async (req, res, next) => {
+  const client = await pool.connect(); // Exclusive conection
+  try {
+    const { id } = req.params; // Task ID
+    const { title, description, imageUrls } = req.body;
+
+
+    // Begin transaction
+    await client.query('BEGIN');
+
+    // Update Task, It means: "title and description"
+    await client.query(
+      "UPDATE task SET title = $1, description = $2 WHERE task.task_id = $3 RETURNING *",
+      [title, description, id]
+    );
+
+
+    // Delete selected images
+    if (imageUrls && imageUrls.length > 0) {
+      for (const publicUrl of imageUrls) {
+        const idExtracted = extractPublicIdFromUrl(publicUrl); // Extracting "id cloudinary = archive name" from public url
+
+        if (idExtracted) {
+          // Delete from Cloudinary
+          await deleteImageFromCloudinary(idExtracted);
+
+          // Delete from DB
+          await client.query('DELETE FROM image WHERE task_id = $1 AND image_path = $2', [id, publicUrl]);
+        }
+      }
+    }
+
+    // Upload new images asociated to a one task
+    if (req.files && req.files.length > 0) {
+      const newImages = await Promise.all(req.files.map(file => saveImageToCloudinary(file, id)));
+      if (newImages && newImages.length > 0) {
+        const insertImageQuery = 'INSERT INTO image (task_id, image_path) VALUES ($1, $2) RETURNING *';
+        for (const urlpath of newImages) {
+          await client.query(insertImageQuery, [id, urlpath]);
+        }
+      }
+    }
+
+    // Confirm transaction
+    await client.query('COMMIT');
+
+    res.status(200).json({
+      message: 'Task updated successfully'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(200).json({
+      message: error
+    });
+    next(error);
+  } finally {
+    client.release(); // Leave conection
+  }
+};
+
+const extractPublicIdFromUrl = (url) => {
+  // Expresión regular extrae el public_id completo desde la URL de Cloudinary
+  const regex = /\/upload\/v\d+\/task\/(task_\d+_[^\.]+)/;
+  const match = url.match(regex);
+  if (match) {
+    // match[1] es el taskId y match[2] es el filename (sin la extensión)
+    return match[1];
+  }
+  return null;
 };
 
 // const createTask = async (req, res, next) => {

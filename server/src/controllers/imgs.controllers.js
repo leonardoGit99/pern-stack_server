@@ -18,18 +18,18 @@ function saveImage(file) { // Se encarga de renombrar el archivo (fieldname) por
   return newPath;
 } */
 
-const  getImages = async (req, res, next) => {
+const getImages = async (req, res, next) => {
   try {
     const { id } = req.params;
     // Query que devuelve id de la tarea y un array de imagenes asociadas a ese id
     const result = await pool.query(
-      'SELECT t.task_id, ARRAY_AGG(i.image_path) AS image_paths FROM task t JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id',
-      [id]                    
+      'SELECT t.task_id, ARRAY_AGG(i.image_path) AS image_paths FROM task t  JOIN image i ON t.task_id = i.task_id WHERE t.task_id = $1 GROUP BY t.task_id',
+      [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Imgs not found" })
-    }       
+    }
     return res.json(result.rows[0]);
   } catch (error) {
     next(error);
