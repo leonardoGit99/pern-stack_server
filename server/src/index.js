@@ -1,17 +1,34 @@
 /* Archivo que arranca el servidor */
+
 const express = require('express');
 const morgan = require('morgan'); //Morgan es un middleware que se ejecuta antes y durante una solicitud HTTP, registra los request entre otros.
 const cors = require('cors'); // Modulo que permite comunicar ambos servidores de manera simple (React + Express)
 const path = require('path');
+const { config } = require('dotenv'); // modulo para utilizar variables de entorno
+config();
 
 
 const taskRoutes = require('./routes/tasks.routes'); //importamos el modulo tasksroutes.js 
 const imgsRoutes = require('./routes/imgs.routes');
 
-
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://pern-stack-by-lfc.vercel.app',
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir sin origin (por ejemplo, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json()); // Para que express pueda entender el formato json para post
 // app.use('/image', express.static(path.join(__dirname, '../public')));
